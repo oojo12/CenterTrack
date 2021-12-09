@@ -16,7 +16,8 @@ except:
   USE_TENSORBOARD = False
 
 class Logger(object):
-  def __init__(self, opt):
+  def __init__(self, opt, rank=0):
+    self.rank = rank
     """Create a summary writer logging to log_dir."""
     if not os.path.exists(opt.save_dir):
       os.makedirs(opt.save_dir)
@@ -29,8 +30,8 @@ class Logger(object):
                 if not name.startswith('_'))
     file_name = os.path.join(opt.save_dir, 'opt.txt')
     with open(file_name, 'wt') as opt_file:
-      opt_file.write('==> commit hash: {}\n'.format(
-        subprocess.check_output(["git", "describe"])))
+      #opt_file.write('==> commit hash: {}\n'.format(
+      #  subprocess.check_output(["git", "describe"])))
       opt_file.write('==> torch version: {}\n'.format(torch.__version__))
       opt_file.write('==> cudnn version: {}\n'.format(
         torch.backends.cudnn.version()))
@@ -56,6 +57,8 @@ class Logger(object):
     self.start_line = True
 
   def write(self, txt):
+    if self.rank != 0:
+        return
     if self.start_line:
       time_str = time.strftime('%Y-%m-%d-%H-%M')
       self.log.write('{}: {}'.format(time_str, txt))
