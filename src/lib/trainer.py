@@ -107,26 +107,12 @@ class Trainer(object):
     self.loss_stats, self.loss = self._get_losses(opt)
     self.model_with_loss = ModleWithLoss(model, self.loss)
 
-  def set_device(self, gpus, chunk_sizes, device):
-    if len(gpus) > 1:
-      self.model_with_loss = DataParallel(
-        self.model_with_loss, device_ids=gpus, 
-        chunk_sizes=chunk_sizes).to(device)
-    else:
-      self.model_with_loss = self.model_with_loss.to(device)
-    
-    for state in self.optimizer.state.values():
-      for k, v in state.items():
-        if isinstance(v, torch.Tensor):
-          state[k] = v.to(device=device, non_blocking=True)
 
-  def run_epoch(self, phase, epoch, data_loader):
+  def run_epoch(self, lite, phase, epoch, data_loader):
     model_with_loss = self.model_with_loss
     if phase == 'train':
       model_with_loss.train()
     else:
-      if len(self.opt.gpus) > 1:
-        model_with_loss = self.model_with_loss.module
       model_with_loss.eval()
       torch.cuda.empty_cache()
 
@@ -142,15 +128,12 @@ class Trainer(object):
       if iter_id >= num_iters:
         break
       data_time.update(time.time() - end)
-
-      for k in batch:
-        if k != 'meta':
-          batch[k] = batch[k].to(device=opt.device, non_blocking=True)   
+ 
       output, loss, loss_stats = model_with_loss(batch)
       loss = loss.mean()
       if phase == 'train':
         self.optimizer.zero_grad()
-        loss.backward()
+        lite.backward(loss)
         self.optimizer.step()
       batch_time.update(time.time() - end)
       end = time.time()
@@ -310,8 +293,8 @@ class Trainer(object):
       else:
         debugger.show_all_imgs(pause=True)
   
-  def val(self, epoch, data_loader):
-    return self.run_epoch('val', epoch, data_loader)
+  def val(self, lite, epoch, data_loader):
+    return self.run_epoch('val', lite, epoch, data_loader)
 
-  def train(self, epoch, data_loader):
-    return self.run_epoch('train', epoch, data_loader)
+  def train(self, lite, epoch, data_loader):
+    return self.run_epoch('train', lite, epoch, data_loader)
